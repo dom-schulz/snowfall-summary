@@ -15,3 +15,6 @@ test/
 *.txt
 *.html
 pull_noaa.py
+meteo_hourly.csv
+meteo_daily.csv
+data_cleaning/unsuccessful_resorts.csv

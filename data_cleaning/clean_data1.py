@@ -3,7 +3,7 @@ from geopy.geocoders import Nominatim
 from geopy.extra.rate_limiter import RateLimiter
 
 def add_states_to_us_resorts(input_csv, output_csv, selected_columns) -> None:
-    """
+    '''
     Reads input CSV, filters for rows where Country == 'United States',
     reverse geocodes (Latitude, Longitude) to find the State, and saves
     only the user-specified columns (plus 'State') to output_csv.
@@ -12,7 +12,7 @@ def add_states_to_us_resorts(input_csv, output_csv, selected_columns) -> None:
     :param output_csv:      Path where the resulting CSV will be saved.
     :param selected_columns: List of columns to include in final CSV 
                              (add 'State' to this list if you want it).
-    """
+    '''
 
     # Load the dataset (use an alternate encoding if needed)
     df = pd.read_csv(input_csv, encoding="latin1", on_bad_lines="skip")

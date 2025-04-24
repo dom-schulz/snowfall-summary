@@ -1,15 +1,14 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, timedelta, timezone
-from utils import get_connection, populate_weather_data, get_nearby_resorts_within_driving_distance
+from datetime import datetime, timedelta
+from utils import get_connection, get_nearby_resorts_within_driving_distance, format_drive_time
 from dotenv import load_dotenv
 import os
-import openrouteservice
 from geopy.geocoders import Nominatim
 
 
 # ------------------- CONFIG DB ------------------- #
-load_dotenv()
+load_dotenv() # Load environment variables
 DB_CONFIG = {
     "host": os.getenv("host"),
     "user": os.getenv("user"),
@@ -21,25 +20,45 @@ DB_CONFIG = {
 WEATHER_TABLE = "historical_weather"
 ORS_API_KEY = os.getenv("ors_api_key")
 
-# --- STREAMLIT APP ---
+# ------------------- CONFIG STREAMLIT ------------------- #
 st.set_page_config(page_title="Snowfall Dashboard", layout="wide")
 tabs = st.tabs(["Dashboard", "Insights", "About"])
 
-# --- TAB 1: DASHBOARD ---
+
+# ------------------- TAB 1: DASHBOARD ------------------- #
 with tabs[0]:
     st.header("Historical Snowfall Dashboard")
+    
+    # # Define unit dictionary for display
+    # UNITS_DICT = {
+    #     'temperature_2m_max': '°C (°F)',
+    #     'temperature_2m_min': '°C (°F)',
+    #     'apparent_temperature_max': '°C (°F)',
+    #     'apparent_temperature_min': '°C (°F)',
+    #     'precipitation_sum': 'mm',
+    #     'precipitation_hours': 'hours',
+    #     'snowfall_sum': 'cm',
+    #     'sunrise': 'iso8601',
+    #     'sunset': 'iso8601',
+    #     'windspeed_10m_max': 'km/h (mph, m/s, knots)',
+    #     'windgusts_10m_max': 'km/h (mph, m/s, knots)',
+    #     'winddirection_10m_dominant': '°',
+    #     'shortwave_radiation_sum': 'MJ/m²',
+    #     'et0_fao_evapotranspiration': 'mm',
+    #     'all': '-'
+    # }
+    
+    
     with st.spinner("Loading data..."):
         conn = get_connection(DB_CONFIG)
-        cursor = conn.cursor()
         
+        # Get historical weather hdata from database
         df = pd.read_sql(f"SELECT * FROM {WEATHER_TABLE} INNER JOIN resorts USING(id)", conn)
-        
-        cursor.close()
-        conn.close()
 
     df['time'] = pd.to_datetime(df['time'])
     df = df[df['time'] >= (datetime.now() - timedelta(days=90))]
 
+    # ------------------- FILTERS ------------------- #
     states = st.multiselect("Select states:", sorted(df['state'].unique()), default=df['state'].unique())
     resorts = st.multiselect("Select resorts:", sorted(df[df['state'].isin(states)]['resort'].unique()))
     date_range = st.date_input("Select date range:", [df['time'].min(), df['time'].max()])
@@ -69,28 +88,9 @@ with tabs[0]:
             use_container_width=True
         )
 
-# --- TAB 2: INSIGHTS ---
+# ------------------- TAB 2: INSIGHTS ------------------- #
 with tabs[1]:
     st.header("Find Nearby Resorts")
-    
-    # Define unit dictionary for display
-    units_dict = {
-        'temperature_2m_max': '°C (°F)',
-        'temperature_2m_min': '°C (°F)',
-        'apparent_temperature_max': '°C (°F)',
-        'apparent_temperature_min': '°C (°F)',
-        'precipitation_sum': 'mm',
-        'precipitation_hours': 'hours',
-        'snowfall_sum': 'cm',
-        'sunrise': 'iso8601',
-        'sunset': 'iso8601',
-        'windspeed_10m_max': 'km/h (mph, m/s, knots)',
-        'windgusts_10m_max': 'km/h (mph, m/s, knots)',
-        'winddirection_10m_dominant': '°',
-        'shortwave_radiation_sum': 'MJ/m²',
-        'et0_fao_evapotranspiration': 'mm',
-        'all': '-'
-    }
     
     # Get address from user
     address_input = st.text_input("Enter your address:", placeholder="e.g. 123 Main St, Spokane, WA")
@@ -101,7 +101,7 @@ with tabs[1]:
         if address_input:
             with st.spinner("Geocoding address and finding nearby resorts..."):
                 try:
-                    # Geocode the address
+                    # Geocode the address using Nominatim
                     geolocator = Nominatim(user_agent="resort_finder")
                     location = geolocator.geocode(address_input, timeout=10)
                     
@@ -111,7 +111,7 @@ with tabs[1]:
                         st.success(f"Found location: {location.address}")
                         user_lat, user_lon = location.latitude, location.longitude
                         
-                        # Get nearby resorts
+                        # Get nearby resorts, function opens and closes connection to database
                         nearby_resorts = get_nearby_resorts_within_driving_distance(DB_CONFIG, ORS_API_KEY, user_lat, user_lon, max_distance)
                         
                         # Display results
@@ -123,12 +123,6 @@ with tabs[1]:
                             
                             # Create a DataFrame for display
                             results_df = pd.DataFrame(nearby_resorts)
-                            
-                            # Format drive time
-                            def format_drive_time(minutes):
-                                hours = int(minutes // 60)
-                                mins = int(minutes % 60)
-                                return f"{hours}h {mins}m" if hours else f"{mins}m"
                             
                             results_df["drive_time"] = results_df["duration_minutes"].apply(format_drive_time)
                             results_df["distance"] = results_df["distance"].round(1).astype(str) + " miles"
@@ -154,7 +148,7 @@ with tabs[1]:
             st.warning("Please enter an address to find nearby resorts.")
 
 
-# --- TAB 3: ABOUT ---
+# ------------------- TAB 3: ABOUT ------------------- #    
 with tabs[2]:
     st.header("About")
     st.write("This dashboard was built to visualize snowfall trends across U.S. resorts using OpenMeteo data and Supabase.")

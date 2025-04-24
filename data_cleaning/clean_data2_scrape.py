@@ -10,7 +10,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 
 def convert_coordinates_to_decimal(coord_str):
-    """Convert coordinates from format like '39.1895° N, 106.9497° W' to decimal format."""
+    '''Convert coordinates from format like '39.1895° N, 106.9497° W' to decimal format.'''
     try:
         # Extract latitude
         lat_match = re.search(r'(\d+\.\d+)°\s*([NS])', coord_str)
@@ -36,7 +36,7 @@ def convert_coordinates_to_decimal(coord_str):
         return None, None
 
 def extract_coordinates_from_text(text):
-    """Try to extract coordinates from any text on the page using pattern matching."""
+    '''Try to extract coordinates from any text on the page using pattern matching.'''
     # Look for patterns like "39.1895° N, 106.9497° W" or "39.1895°N, 106.9497°W"
     coord_pattern = re.compile(r'(\d+\.\d+)°\s*([NS])[\s,]*(\d+\.\d+)°\s*([EW])')
     match = coord_pattern.search(text)
@@ -55,7 +55,7 @@ def extract_coordinates_from_text(text):
     return None, None
 
 def extract_state_from_text(text):
-    """Try to extract state information from any text on the page."""
+    '''Try to extract state information from any text on the page.'''
     # List of US state names
     us_states = [
         "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut", 
@@ -92,7 +92,7 @@ def extract_state_from_text(text):
     return None
 
 def get_resort_info(driver, resort_name):
-    """Search for a resort and extract coordinates and state information."""
+    '''Search for a resort and extract coordinates and state information.'''
     search_query = f"{resort_name} ski resort coordinates"
     search_url = f"https://www.google.com/search?q={search_query.replace(' ', '+')}"
     
