@@ -9,6 +9,7 @@ env/
 # Environment Variables
 .env
 *.env
+.streamlit/secrets.toml
 
 # Project specific
 test/

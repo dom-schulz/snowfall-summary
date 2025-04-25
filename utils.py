@@ -121,18 +121,12 @@ def update_resorts(conn, cursor, RESORTS_TABLE, local_file):
     conn.commit()
 
 
-def get_nearby_resorts_within_driving_distance(DB_CONFIG, ORS_API_KEY, user_lat, user_lon, max_miles):
+def get_nearby_resorts_within_driving_distance(ORS_API_KEY, resorts_df, hourly_df,user_lat, user_lon, max_miles):
     '''
     Get the nearby resorts within a driving distance of the user.
     '''
     
-    conn = get_connection(DB_CONFIG)
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT id, resort, state, latitude, longitude FROM resorts")
-    all_resorts = cursor.fetchall()
-    
-    coords = [(resort[4], resort[3]) for resort in all_resorts]  # (lon, lat)
+    coords = [(row['longitude'], row['latitude']) for _, row in resorts_df.iterrows()]  # (lon, lat)
     origin = (user_lon, user_lat)
     
     client = openrouteservice.Client(key=ORS_API_KEY)
@@ -152,9 +146,9 @@ def get_nearby_resorts_within_driving_distance(DB_CONFIG, ORS_API_KEY, user_lat,
     for i, (miles, seconds) in enumerate(zip(distances, durations)):
         if miles is not None and miles <= max_miles:
             nearby.append({
-                "id": all_resorts[i][0],
-                "resort": all_resorts[i][1],
-                "state": all_resorts[i][2],
+                "id": resorts_df.iloc[i]['id'],
+                "resort": resorts_df.iloc[i]['resort'],
+                "state": resorts_df.iloc[i]['state'],
                 "distance": miles,
                 "duration_minutes": round(seconds / 60, 1)
             })
@@ -163,27 +157,22 @@ def get_nearby_resorts_within_driving_distance(DB_CONFIG, ORS_API_KEY, user_lat,
     if nearby:
         nearby_ids = tuple([r["id"] for r in nearby])
         
-        cursor.execute("SELECT MIN(time) FROM hourly")
-        now = cursor.fetchone()[0]
+        now = datetime.now()
         cutoff = now + timedelta(days=4)
         
-        query = """
-            SELECT h.id, SUM(h.snowfall) AS total_snowfall_next_4_days
-            FROM hourly h
-            WHERE h.id IN %s AND time >= %s AND time <= %s
-            GROUP BY h.id
-            ORDER BY total_snowfall_next_4_days DESC
-        """
-        cursor.execute(query, (nearby_ids, now.isoformat(), cutoff.isoformat()))
-        snowfall_forecast = cursor.fetchall()
+        # Filter the DataFrame for nearby resorts and the time range
+        filtered_df = hourly_df[(hourly_df['id'].isin(nearby_ids)) & 
+                                 (hourly_df['time'] >= now) & 
+                                 (hourly_df['time'] <= cutoff)]
+        
+        # Aggregate snowfall data
+        snowfall_forecast = filtered_df.groupby('id')['snowfall'].sum().reset_index()
+        snowfall_forecast.columns = ['id', 'total_snowfall_next_4_days']
         
         # Add forecast to nearby resorts
-        snowfall_dict = {resort_id: snowfall for resort_id, snowfall in snowfall_forecast}
+        snowfall_dict = {row['id']: row['total_snowfall_next_4_days'] for _, row in snowfall_forecast.iterrows()}
         for resort in nearby:
             resort["forecast_snowfall"] = snowfall_dict.get(resort["id"], 0)
-    
-    cursor.close()
-    conn.close()
     return nearby
 
 
@@ -198,7 +187,8 @@ def get_weather_data(resorts_df, weather_code_map, hourly_obj, daily_obj):
     '''
     This function is used to get the weather data for the resorts in the resorts_df dataframe.
     It returns a list of the hourly and daily dataframes.
-
+    
+    Used in populate_forecast.py
     '''
     
     hourly_df = pd.DataFrame()
@@ -317,3 +307,26 @@ def insert_daily_df(df, cursor, connection):
     # Bulk insert using execute_values
     execute_values(cursor, query, data)
     connection.commit()
+
+
+
+    # if nearby:
+    #     nearby_ids = tuple([r["id"] for r in nearby])
+        
+    #     now = datetime.now()
+    #     cutoff = now + timedelta(days=4)
+        
+    #     query = """
+    #         SELECT h.id, SUM(h.snowfall) AS total_snowfall_next_4_days
+    #         FROM hourly h
+    #         WHERE h.id IN %s AND time >= %s AND time <= %s
+    #         GROUP BY h.id
+    #         ORDER BY total_snowfall_next_4_days DESC
+    #     """
+    #     cursor.execute(query, (nearby_ids, now.isoformat(), cutoff.isoformat()))
+    #     snowfall_forecast = cursor.fetchall()
+        
+    #     # Add forecast to nearby resorts
+    #     snowfall_dict = {resort_id: snowfall for resort_id, snowfall in snowfall_forecast}
+    #     for resort in nearby:
+    #         resort["forecast_snowfall"] = snowfall_dict.get(resort["id"], 0)

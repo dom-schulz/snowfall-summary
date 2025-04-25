@@ -7,22 +7,37 @@ import os
 from geopy.geocoders import Nominatim
 
 
-# ------------------- CONFIG DB ------------------- #
-load_dotenv() # Load environment variables
+# ------------------- CONFIG ------------------- #
+
 DB_CONFIG = {
-    "host": os.getenv("host"),
-    "user": os.getenv("user"),
-    "password": os.getenv("password"),
-    "dbname": os.getenv("dbname"),
-    "port": os.getenv("port")
+        "user": st.secrets["user"],
+        "password": st.secrets["password"],
+        "dbname": st.secrets["dbname"],
+        "host": st.secrets["host"],
+        "port": st.secrets["port"]
 }
 
 WEATHER_TABLE = "historical_weather"
-ORS_API_KEY = os.getenv("ors_api_key")
+ORS_API_KEY = st.secrets["ors_api_key"]
+
+
 
 # ------------------- CONFIG STREAMLIT ------------------- #
-st.set_page_config(page_title="Snowfall Dashboard", layout="wide")
+st.set_page_config(page_title="Snowfall Summary", layout="wide")
+st.title("Snowfall Summary")
 tabs = st.tabs(["Dashboard", "Insights", "About"])
+
+@st.cache_resource(ttl=3600, show_spinner="🔄  Loading Data from the Cloud...") # caches data load for 1 hour on Streamlit Cloud
+def load_data():
+    conn = get_connection(DB_CONFIG)
+    historical_weather = pd.read_sql(f"SELECT * FROM {WEATHER_TABLE}", conn)
+    resorts = pd.read_sql(f"SELECT * FROM resorts", conn)
+    hourly_forecasts = pd.read_sql(f"SELECT * FROM hourly", conn)
+    daily_forecasts = pd.read_sql(f"SELECT * FROM daily", conn)
+    
+    return historical_weather, resorts, hourly_forecasts, daily_forecasts
+
+historical_weather, resorts_df, hourly_forecasts, daily_forecasts = load_data()
 
 
 # ------------------- TAB 1: DASHBOARD ------------------- #
@@ -47,14 +62,11 @@ with tabs[0]:
     #     'et0_fao_evapotranspiration': 'mm',
     #     'all': '-'
     # }
-    
-    
-    with st.spinner("Loading data..."):
-        conn = get_connection(DB_CONFIG)
-        
-        # Get historical weather hdata from database
-        df = pd.read_sql(f"SELECT * FROM {WEATHER_TABLE} INNER JOIN resorts USING(id)", conn)
 
+    # join historical weather and resorts
+    df = pd.merge(historical_weather, resorts_df, on='id', how='left')
+    
+    # Filter data for the last 90 days
     df['time'] = pd.to_datetime(df['time'])
     df = df[df['time'] >= (datetime.now() - timedelta(days=90))]
 
@@ -112,7 +124,7 @@ with tabs[1]:
                         user_lat, user_lon = location.latitude, location.longitude
                         
                         # Get nearby resorts, function opens and closes connection to database
-                        nearby_resorts = get_nearby_resorts_within_driving_distance(DB_CONFIG, ORS_API_KEY, user_lat, user_lon, max_distance)
+                        nearby_resorts = get_nearby_resorts_within_driving_distance(ORS_API_KEY, resorts_df, hourly_forecasts, user_lat, user_lon, max_distance)
                         
                         # Display results
                         if not nearby_resorts:
