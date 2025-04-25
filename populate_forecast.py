@@ -25,7 +25,8 @@ DB_CONFIG = {
     "user": os.getenv("user"),
     "password": os.getenv("password"),
     "dbname": os.getenv("dbname"),
-    "port": os.getenv("port")
+    "port": os.getenv("port"),
+    "gssencmode": 'disable'
 }
 
 # Initialize OpenMeteo objects

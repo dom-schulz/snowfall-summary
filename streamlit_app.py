@@ -9,26 +9,29 @@ from geopy.geocoders import Nominatim
 
 # ------------------- CONFIG ------------------- #
 
+# Load environment variables
+load_dotenv()
 DB_CONFIG = {
-        "user": st.secrets["user"],
-        "password": st.secrets["password"],
-        "dbname": st.secrets["dbname"],
-        "host": st.secrets["host"],
-        "port": st.secrets["port"]
+        "user": os.getenv("user"),
+        "password": os.getenv("password"),
+        "dbname": os.getenv("dbname"),
+        "host": os.getenv("host"),
+        "port": os.getenv("port"),
+        "gssencmode": 'disable'
 }
 
 WEATHER_TABLE = "historical_weather"
-ORS_API_KEY = st.secrets["ors_api_key"]
+ORS_API_KEY = os.getenv("ors_api_key")
 
 
 
 # ------------------- CONFIG STREAMLIT ------------------- #
 st.set_page_config(page_title="Snowfall Summary", layout="wide")
 st.title("Snowfall Summary")
-tabs = st.tabs(["Dashboard", "Insights", "About"])
+tabs = st.tabs(["Dashboard", "Find Nearby Resorts", "About"])
 
 @st.cache_resource(ttl=3600, show_spinner="🔄  Loading Data from the Cloud...") # caches data load for 1 hour on Streamlit Cloud
-def load_data():
+def load_data(DB_CONFIG):
     conn = get_connection(DB_CONFIG)
     historical_weather = pd.read_sql(f"SELECT * FROM {WEATHER_TABLE}", conn)
     resorts = pd.read_sql(f"SELECT * FROM resorts", conn)
@@ -37,7 +40,7 @@ def load_data():
     
     return historical_weather, resorts, hourly_forecasts, daily_forecasts
 
-historical_weather, resorts_df, hourly_forecasts, daily_forecasts = load_data()
+historical_weather, resorts_df, hourly_forecasts, daily_forecasts = load_data(DB_CONFIG)
 
 
 # ------------------- TAB 1: DASHBOARD ------------------- #
@@ -100,7 +103,7 @@ with tabs[0]:
             use_container_width=True
         )
 
-# ------------------- TAB 2: INSIGHTS ------------------- #
+# ------------------- TAB 2: FIND NEARBY RESORTS ------------------- #
 with tabs[1]:
     st.header("Find Nearby Resorts")
     
