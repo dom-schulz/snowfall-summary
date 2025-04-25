@@ -6,7 +6,7 @@ psycopg2-binary==2.9.9
 python-dotenv==1.0.0
 
 # OpenMeteo API client
-openmeteopy==1.0.6
+git+https://github.com/m0rp43us/openmeteopy.git@main#egg=openmeteopy
 
 # Geocoding and routing
 geopy==2.4.1
