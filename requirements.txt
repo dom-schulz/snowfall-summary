@@ -1,4 +1,5 @@
 # Core dependencies
+pip>=25.0.1
 streamlit==1.32.0
 pandas==2.1.0
 psycopg2-binary==2.9.9
