@@ -3,9 +3,7 @@ from openmeteopy.hourly import HourlyForecast
 from openmeteopy.daily import DailyForecast
 from openmeteopy.options import ForecastOptions
 import pandas as pd
-from utils import get_connection, get_weather_data, insert_hourly_df, insert_daily_df
-from dotenv import load_dotenv
-import os  
+from utils import get_connection, access_secret, get_weather_data, insert_hourly_df, insert_daily_df
 
 '''
 
@@ -17,85 +15,85 @@ This currently deletes the existing forecast tables and creates new ones.
 
 '''
 
+def main_entry_point(event,context):
+        
+    project_id = "cpsc324-project-452600"
 
-load_dotenv()
+    DB_CONFIG = {
+        "host": access_secret("snow-host", project_id),
+        "user": access_secret("snow-user", project_id),
+        "password": access_secret("snow-password", project_id),
+        "dbname": access_secret("snow-dbname", project_id),
+        "port": access_secret("snow-port", project_id),
+        "gssencmode": 'disable'
+    }
 
-DB_CONFIG = {
-    "host": os.getenv("host"),
-    "user": os.getenv("user"),
-    "password": os.getenv("password"),
-    "dbname": os.getenv("dbname"),
-    "port": os.getenv("port"),
-    "gssencmode": 'disable'
-}
+    # Initialize OpenMeteo objects
+    hourly_obj = HourlyForecast()
+    daily_obj = DailyForecast()
 
-# Initialize OpenMeteo objects
-hourly_obj = HourlyForecast()
-daily_obj = DailyForecast()
+    # Set the hourly and daily forecast objects to include the desired data
+    hourly_obj = hourly_obj.precipitation().snowfall().snow_depth().freezinglevel_height().rain().Showers().weathercode()
 
-# Set the hourly and daily forecast objects to include the desired data
-hourly_obj = hourly_obj.precipitation().snowfall().snow_depth().freezinglevel_height().rain().Showers().weathercode()
+    daily_obj = daily_obj.windspeed_10m_max().windgusts_10m_max().winddirection_10m_dominant().temperature_2m_max()\
+                .temperature_2m_min().apparent_temperature_max().apparent_temperature_min().weathercode()
 
-daily_obj = daily_obj.windspeed_10m_max().windgusts_10m_max().winddirection_10m_dominant().temperature_2m_max()\
-            .temperature_2m_min().apparent_temperature_max().apparent_temperature_min().weathercode()
-
-# Map weather codes to their descriptions
-weather_code_map = {
-    0: "Clear sky",
-    1: "Mainly clear",
-    2: "Partly cloudy",
-    3: "Overcast",
-    45: "Fog and depositing rime fog",
-    48: "Fog and depositing rime fog",
-    51: "Drizzle: Light intensity",
-    53: "Drizzle: Moderate intensity",
-    55: "Drizzle: Dense intensity",
-    56: "Freezing Drizzle: Light intensity",
-    57: "Freezing Drizzle: Dense intensity",
-    61: "Rain: Slight intensity",
-    63: "Rain: Moderate intensity",
-    65: "Rain: Heavy intensity",
-    66: "Freezing Rain: Light intensity",
-    67: "Freezing Rain: Heavy intensity",
-    71: "Snow fall: Slight intensity",
-    73: "Snow fall: Moderate intensity",
-    75: "Snow fall: Heavy intensity",
-    77: "Snow grains",
-    80: "Rain showers: Slight",
-    81: "Rain showers: Moderate",
-    82: "Rain showers: Violent",
-    85: "Snow showers: Slight",
-    86: "Snow showers: Heavy",
-    95: "Thunderstorm: Slight or moderate",
-    96: "Thunderstorm: With Slight Hail",
-    99: "Thunderstorm: With Heavy Hail"
-}
-
-
-
-# ------------------- Connect DB -------------------- #
-try:
-    conn = get_connection(DB_CONFIG)
-    cur = conn.cursor()
-    print("Connection successful!")
-except Exception as e:
-    print(f"Failed to connect: {e}")
-
-resorts = pd.read_sql("SELECT * FROM resorts", conn)
-print(resorts.head())
-
-# ------------------- Upload Weather Data ------------------- #
-
-# Get weather data
-hourly_df, daily_df = get_weather_data(resorts, weather_code_map, hourly_obj, daily_obj)
-
-insert_hourly_df(hourly_df, cur, conn)
-insert_daily_df(daily_df, cur, conn)
-
-cur.close()
-conn.close()
+    # Map weather codes to their descriptions
+    weather_code_map = {
+        0: "Clear sky",
+        1: "Mainly clear",
+        2: "Partly cloudy",
+        3: "Overcast",
+        45: "Fog and depositing rime fog",
+        48: "Fog and depositing rime fog",
+        51: "Drizzle: Light intensity",
+        53: "Drizzle: Moderate intensity",
+        55: "Drizzle: Dense intensity",
+        56: "Freezing Drizzle: Light intensity",
+        57: "Freezing Drizzle: Dense intensity",
+        61: "Rain: Slight intensity",
+        63: "Rain: Moderate intensity",
+        65: "Rain: Heavy intensity",
+        66: "Freezing Rain: Light intensity",
+        67: "Freezing Rain: Heavy intensity",
+        71: "Snow fall: Slight intensity",
+        73: "Snow fall: Moderate intensity",
+        75: "Snow fall: Heavy intensity",
+        77: "Snow grains",
+        80: "Rain showers: Slight",
+        81: "Rain showers: Moderate",
+        82: "Rain showers: Violent",
+        85: "Snow showers: Slight",
+        86: "Snow showers: Heavy",
+        95: "Thunderstorm: Slight or moderate",
+        96: "Thunderstorm: With Slight Hail",
+        99: "Thunderstorm: With Heavy Hail"
+    }
 
 
+    # ------------------- Connect DB -------------------- #
+    try:
+        conn = get_connection(DB_CONFIG)
+        cur = conn.cursor()
+        print("Connection successful!")
+    except Exception as e:
+        print(f"Failed to connect: {e}")
+
+    resorts = pd.read_sql("SELECT * FROM resorts", conn)
+    print(resorts.head())
+
+    # ------------------- Upload Weather Data ------------------- #
+
+    # Get weather data
+    hourly_df, daily_df = get_weather_data(resorts, weather_code_map, hourly_obj, daily_obj)
+
+    insert_hourly_df(hourly_df, cur, conn)
+    insert_daily_df(daily_df, cur, conn)
+
+    cur.close()
+    conn.close()
+
+    print("Completed")
 
 # ------------------- Local Testing ------------------- #
 
